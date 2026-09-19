@@ -86,6 +86,42 @@ test.describe('Game Listing and Navigation', () => {
     });
   });
 
+  test('should filter games by category and publisher on the homepage', async ({ page }) => {
+    await test.step('Navigate to homepage and establish baseline count', async () => {
+      await page.goto('/');
+      const allGames = page.getByTestId('game-card');
+      await expect(allGames.first()).toBeVisible();
+      expect(await allGames.count()).toBeGreaterThan(0);
+    });
+
+    await test.step('Filter by category and verify the page narrows results', async () => {
+      await page.getByTestId('category-filter').selectOption({ value: '1' });
+      const categoryCards = page.locator('[data-testid="game-card"]:not([hidden])');
+      await expect(categoryCards).toHaveCount(4);
+      const categoryTexts = await categoryCards.allTextContents();
+      expect(categoryTexts.every((text) => text.includes('Strategy'))).toBeTruthy();
+    });
+
+    await test.step('Clear category and filter by publisher', async () => {
+      await page.getByTestId('category-filter').selectOption([]);
+      await page.getByTestId('publisher-filter').selectOption({ value: '1' });
+      const publisherCards = page.locator('[data-testid="game-card"]:not([hidden])');
+      await expect(publisherCards).toHaveCount(6);
+      const publisherTexts = await publisherCards.allTextContents();
+      expect(publisherTexts.every((text) => text.includes('CodeForge Studios'))).toBeTruthy();
+    });
+
+    await test.step('Combine category and publisher filters and verify both are respected', async () => {
+      await page.getByTestId('publisher-filter').selectOption([]);
+      await page.getByTestId('category-filter').selectOption({ value: '1' });
+      await page.getByTestId('publisher-filter').selectOption({ value: '1' });
+      const combinedCards = page.locator('[data-testid="game-card"]:not([hidden])');
+      await expect(combinedCards).toHaveCount(1);
+      const combinedTexts = await combinedCards.allTextContents();
+      expect(combinedTexts.every((text) => text.includes('Strategy') && text.includes('CodeForge Studios'))).toBeTruthy();
+    });
+  });
+
   test('should display a button to back the game', async ({ page }) => {
     await test.step('Navigate to game details page', async () => {
       await page.goto('/game/1');

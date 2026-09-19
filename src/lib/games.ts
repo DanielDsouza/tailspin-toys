@@ -1,7 +1,12 @@
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, inArray } from 'drizzle-orm';
 import type { Database } from './db';
 import { games, categories, publishers } from '../../db/schema';
-import type { Game } from '../types/game';
+import type { Game, Category } from '../types/game';
+
+export interface GameFilters {
+    categoryIds?: number[];
+    publisherIds?: number[];
+}
 
 const gameSelection = {
     id: games.id,
@@ -50,10 +55,38 @@ function baseGamesQuery(db: Database) {
         .leftJoin(publishers, eq(games.publisherId, publishers.id));
 }
 
-/** All games ordered by title. */
-export async function getAllGames(db: Database): Promise<Game[]> {
-    const rows = await baseGamesQuery(db).orderBy(asc(games.title));
+function applyFilters(query: ReturnType<typeof baseGamesQuery>, filters?: GameFilters) {
+    if (!filters) {
+        return query;
+    }
+
+    const conditions = [];
+
+    if (filters.categoryIds && filters.categoryIds.length > 0) {
+        conditions.push(inArray(games.categoryId, filters.categoryIds));
+    }
+
+    if (filters.publisherIds && filters.publisherIds.length > 0) {
+        conditions.push(inArray(games.publisherId, filters.publisherIds));
+    }
+
+    return conditions.length > 0 ? query.where(and(...conditions)) : query;
+}
+
+/** Returns all games in alphabetical order, optionally narrowed to matching category and publisher filters. */
+export async function getAllGames(db: Database, filters?: GameFilters): Promise<Game[]> {
+    const rows = await applyFilters(baseGamesQuery(db), filters).orderBy(asc(games.title));
     return rows.map(mapGame);
+}
+
+/** Returns all categories ordered alphabetically by name. */
+export async function getAllCategories(db: Database): Promise<Category[]> {
+    const rows = await db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .orderBy(asc(categories.name));
+
+    return rows.map((row) => ({ id: row.id, name: row.name }));
 }
 
 /** All game ids ordered by title. */
